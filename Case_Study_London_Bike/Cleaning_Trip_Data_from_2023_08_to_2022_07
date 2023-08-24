@@ -1,0 +1,140 @@
+# Using the 2022 August Trip Data as a foundation, fill in missing data from other tables (if it exists). We'll use this table to fill in the gaps for all the other tables once it's completed. 
+# Problem: some stations share the same latitudinal and longitudinal data despite being different stations. So due to this ambiguity, our best bet is to remove any data with NULL values.
+
+# Cleaning 2022 August Trip Data
+# First we'll get only the information we need. We'll start by separating time and date from "started by" and "ended by" values. Then we'll filter out the "NULL" values for longitudinal and latitudinal dat and 
+#keep the rest of the columns. We'll also create a new column called "trip_duration" that records the length of the trip.
+WITH temp_table AS (
+  SELECT 
+  started_at, ended_at,
+  CAST(started_at AS DATE) AS start_date, #splitting time and date into separate values
+  CAST(started_at AS TIME) AS start_time,
+  CAST(ended_at AS DATE) AS end_date, 
+  CAST(ended_at AS TIME) AS end_time, 
+  member_casual, rideable_type AS ride_type
+
+FROM 
+  `arctic-analyzer-392401.Case_Study_London_Bike.2022_08_Trip_Data`
+
+WHERE
+  #Filtering out potential NULL values
+  start_lat IS NOT NULL AND 
+  start_lng IS NOT NULL
+  AND end_lat IS NOT NULL AND 
+  end_lng IS NOT NULL
+
+)
+
+SELECT
+  ride_type, FORMAT_DATE('%A', start_date) AS day,# Creating a new column for the day of the week
+  start_date, start_time, 
+  #end_date, end_time,
+  CAST(ABS(DATE_DIFF(ended_at, started_at, MINUTE)) AS INT64) AS trip_duration, 
+  member_casual AS membership_status
+
+FROM
+  temp_table
+
+ORDER BY
+  start_date, start_time, member_casual
+# We save this into a new table "Cleaned_2022_08_Trip_Data"
+# Then we repeat the same cleaning procedure for 2022 September to 2023 July
+
+# After, we'll combine all the data tables of the cleaned data into one big dataset called "Combined_2022_08_to_2023_07_Trip_Data"
+SELECT  
+  *
+
+FROM 
+  `arctic-analyzer-392401.Case_Study_London_Bike.Cleaned_2022_08_Trip_Data`
+
+UNION ALL
+
+SELECT 
+  *
+
+FROM
+  `arctic-analyzer-392401.Case_Study_London_Bike.Cleaned_2022_09_Trip_Data`
+
+UNION ALL
+
+SELECT
+  *
+
+FROM
+  `arctic-analyzer-392401.Case_Study_London_Bike.Cleaned_2022_10_Trip_Data`
+
+UNION ALL
+
+SELECT
+  *
+
+FROM
+  `arctic-analyzer-392401.Case_Study_London_Bike.Cleaned_2022_11_Trip_Data`
+
+UNION ALL
+
+SELECT
+  *
+
+FROM 
+  `arctic-analyzer-392401.Case_Study_London_Bike.Cleaned_2022_12_Trip_Data`
+
+UNION ALL
+
+SELECT
+  *
+
+FROM 
+  `arctic-analyzer-392401.Case_Study_London_Bike.Cleaned_2023_01_Trip_Data`
+
+UNION ALL
+
+SELECT
+  *
+
+FROM `arctic-analyzer-392401.Case_Study_London_Bike.Cleaned_2023_02_Trip_Data`
+
+UNION ALL
+
+SELECT
+  *
+
+FROM
+  `arctic-analyzer-392401.Case_Study_London_Bike.Cleaned_2023_03_Trip_Data`
+
+UNION ALL
+
+SELECT
+  *
+
+FROM
+  `arctic-analyzer-392401.Case_Study_London_Bike.Cleaned_2023_04_Trip_Data`
+
+UNION ALL
+
+SELECT
+  *
+
+FROM
+  `arctic-analyzer-392401.Case_Study_London_Bike.Cleaned_2023_05_Trip_Data`
+
+UNION ALL
+
+SELECT
+  *
+
+FROM
+  `arctic-analyzer-392401.Case_Study_London_Bike.Cleaned_2023_06_Trip_Data`
+
+UNION ALL
+
+SELECT
+  *
+
+FROM 
+  `arctic-analyzer-392401.Case_Study_London_Bike.Cleaned_2023_07_Trip_Data`
+
+ORDER BY
+  start_date, start_time
+
+# Now the dataset is ready for analysis. 
