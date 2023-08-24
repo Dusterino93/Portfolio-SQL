@@ -1,224 +1,45 @@
 # Using the 2022 August Trip Data as a foundation, fill in missing data from other tables (if it exists). We'll use this table to fill in the gaps for all the other tables once it's completed. 
+# Problem: some stations share the same latitudinal and longitudinal data despite being different stations. So due to this ambiguity, our best bet is to remove any data with NULL values.
 
-# Combine Trip Data from 2022 August to 2022 September
-SELECT
-  started_at, ended_at, start_station_name, start_station_id, end_station_name, end_station_id, start_lat, start_lng, end_lat, end_lng, member_casual
+# Cleaning 2022 August Trip Data
+# First we'll get only the information we need. We'll start by separating time and date from "started by" and "ended by" values. Then we'll filter out the "NULL" values for longitudinal and latitudinal dat and 
+#keep the rest of the columns. We'll also create a new column called "trip_duration" that records the length of the trip.
+WITH temp_table AS (
+  SELECT 
+  started_at, ended_at,
+  CAST(started_at AS DATE) AS start_date, #splitting time and date into separate values
+  CAST(started_at AS TIME) AS start_time,
+  CAST(ended_at AS DATE) AS end_date, 
+  CAST(ended_at AS TIME) AS end_time, 
+  start_station_name AS start_station, end_station_name AS end_station, CONCAT(start_lat, ", ", start_lng) AS start_lat_lng, CONCAT(end_lat, ", ", end_lng) AS end_lat_lng,
+  member_casual, rideable_type AS ride_type
 
-FROM `arctic-analyzer-392401.Case_Study_London_Bike.2022_08_Trip_Data`
-
-WHERE `arctic-analyzer-392401.Case_Study_London_Bike.2022_08_Trip_Data`.end_lat IS NOT NULL AND `arctic-analyzer-392401.Case_Study_London_Bike.2022_08_Trip_Data`.end_lng IS NOT NULL
-
-UNION ALL
-
-SELECT
-  started_at, ended_at, start_station_name, start_station_id, end_station_name, end_station_id, start_lat, start_lng, end_lat, end_lng, member_casual
-
-FROM
-  `arctic-analyzer-392401.Case_Study_London_Bike.2022_09_Trip_Data`
+FROM 
+  `arctic-analyzer-392401.Case_Study_London_Bike.2022_08_Trip_Data`
 
 WHERE
-  `arctic-analyzer-392401.Case_Study_London_Bike.2022_09_Trip_Data`.end_lat IS NOT NULL AND `arctic-analyzer-392401.Case_Study_London_Bike.2022_09_Trip_Data`.end_lng IS NOT NULL OR
-  `arctic-analyzer-392401.Case_Study_London_Bike.2022_09_Trip_Data`.start_lat IS NOT NULL AND `arctic-analyzer-392401.Case_Study_London_Bike.2022_09_Trip_Data`.start_lng IS NOT NULL
-  
-ORDER BY
-  start_lat, start_lng, end_lat, end_lng, member_casual
+  #Filtering out potential NULL values
+  start_lat IS NOT NULL AND 
+  start_lng IS NOT NULL
+  AND end_lat IS NOT NULL AND 
+  end_lng IS NOT NULL
 
-# Made a new column for travel time in new table
-
-WITH
-  temp_table AS (
-
-SELECT 
-  CAST(started_at AS TIME) AS start_time, CAST(ended_at AS TIME) AS end_time, start_station_name, start_station_id, end_station_name, end_station_id, 
-  CONCAT(start_lat,", ", start_lng) AS start_lat_lng, CONCAT(end_lat, ", ", end_lng) AS end_lat_lng
-
-FROM `arctic-analyzer-392401.Case_Study_London_Bike.Cleaned_2022_08_to_2022_09_Trip_Data` 
-
-ORDER BY
-  start_lat_lng, end_lat_lng)
+)
 
 SELECT
-  CAST(TIME_DIFF(end_time, start_time, MINUTE) AS int64) AS travel_time_min,
-  start_station_name, start_station_id, end_station_name, end_station_id,
-  start_lat_lng, end_lat_lng
+  ride_type, FORMAT_DATE('%A', start_date) AS day,# Creating a new column for the day of the week
+  start_date, start_time, 
+  CAST(ABS(DATE_DIFF(ended_at, started_at, MINUTE)) AS FLOAT64) AS trip_duration, 
+  member_casual AS membership_status,
+  start_station, end_station, start_lat_lng, end_lat_lng
 
 FROM
   temp_table
 
-WHERE
-  start_lat_lng IS NOT NULL AND end_lat_lng IS NOT NULL
+ORDER BY
+  start_date, member_casual
 
-# Saved results in a new table "Cleaned_2022_08_to_2022_09_Ver2"
-
-# Fill in the start_station_name and start_station_id from another table if the start_lat and start_lng from both tables match
-
-
-# Fills in missing start data if the start_lat and end_lat are the same and if the start_lng and end_lng are also the same.
-UPDATE `arctic-analyzer-392401.Case_Study_London_Bike.Cleaned_2022_08_to_2022_09_Trip_Data_Ver2` 
-
-SET
-  start_station_name = end_station_name, start_station_id = end_station_id
-
-WHERE
-  start_lat_lng = end_lat_lng AND 
-  start_station_name IS NULL AND start_station_id IS NULL AND
-  end_station_name IS NOT NULL AND end_station_id IS NOT NULL
-
-# Fills in missing end data if the start_lat and end_lat are the same and if the start_lng and end_lng are also the same.
-UPDATE `arctic-analyzer-392401.Case_Study_London_Bike.Cleaned_2022_08_to_2022_09_Trip_Data_Ver2` 
-
-SET
-  end_station_name = start_station_name, end_station_id = start_station_id
-
-WHERE
-  start_lat_lng = end_lat_lng AND 
-  end_station_name IS NULL AND end_station_id IS NULL AND
-  start_station_name IS NOT NULL AND start_station_id IS NOT NULL
-
-# For December 2022 Trip Data
-
-# Fills in missing start data if the start_lat and end_lat are the same and if the start_lng and end_lng are also the same.
-
-UPDATE `arctic-analyzer-392401.Case_Study_London_Bike.2022_12_Trip_Data`
-
-SET
-  start_station_id = end_station_id, start_station_name = end_station_name
-
-WHERE
-  start_lat = end_lat AND start_lng = end_lng AND
-  start_station_name IS NULL AND start_station_id IS NULL AND
-  end_station_name IS NOT NULL AND end_station_id IS NOT NULL;
-
-# Same thing as above except reversed: fills in the missing end data
-
-UPDATE `arctic-analyzer-392401.Case_Study_London_Bike.2022_12_Trip_Data`
-
-SET
-  end_station_id = start_station_id, end_station_name = start_station_name
-
-WHERE
-  start_lat = end_lat AND start_lng = end_lng AND
-  end_station_name IS NULL AND end_station_id IS NULL AND
-  start_station_name IS NOT NULL AND start_station_id IS NOT NULL;
-
-# station name: "Public Rack - Corliss Ave & 133rd St", id = "870", lat = 41.65, lng = -87.6. Fills in missing start or end data accordingly
-
-UPDATE `arctic-analyzer-392401.Case_Study_London_Bike.2022_12_Trip_Data`
-
-SET
-  start_station_name = "Public Rack - Corliss Ave & 133rd St", start_station_id = "870"
-
-WHERE
-  start_lat = 41.65 AND start_lng = -87.6
-
-# End data
-
-# station name: "Public Rack - Corliss Ave & 133rd St", id = "870", lat = 41.65, lng = -87.6. Fills in missing start or end data accordingly
-
-UPDATE `arctic-analyzer-392401.Case_Study_London_Bike.2022_12_Trip_Data`
-
-SET
-  end_station_name = "Public Rack - Corliss Ave & 133rd St", end_station_id = "870"
-
-WHERE
-  end_lat = 41.65 AND end_lng = -87.6
-
-# station name: "Public Rack - Buffalo Ave & 133rd St", id: 672, lat: 41.65, lng: -87.54. Fills in missing start or end data accordingly
-
-UPDATE `arctic-analyzer-392401.Case_Study_London_Bike.2022_12_Trip_Data`
-
-SET
-  start_station_name = "Public Rack - Buffalo Ave & 133rd St", start_station_id = "672"
-
-WHERE
-  start_lat = 41.65 AND start_lng = -87.54; 
-
-# End data
-
-UPDATE `arctic-analyzer-392401.Case_Study_London_Bike.2022_12_Trip_Data`
-
-SET
-  end_station_name = "Public Rack - Buffalo Ave & 133rd St", end_station_id = "672"
-
-WHERE
-  end_lat = 41.65 AND end_lng = -87.54; 
-
-# station name: "Public Rack - Houston Ave & 130th St", id: 936, lat: 41.66, lng: -87.55
-# Start data
-UPDATE `arctic-analyzer-392401.Case_Study_London_Bike.2022_12_Trip_Data`
-
-SET
-  start_station_name = "Public Rack - Houston Ave & 130th St", end_station_id = "936"
-
-WHERE
-  start_lat = 41.66 AND start_lng = -87.55; 
-
-# End Data
-
-UPDATE `arctic-analyzer-392401.Case_Study_London_Bike.2022_12_Trip_Data`
-
-SET
-  end_station_name = "Public Rack - Houston Ave & 130th St", end_station_id = "936"
-
-WHERE
-  end_lat = 41.66 AND end_lng = -87.55; 
-
-# station name: "Public Rack - Ellis Ave & Doty Ave", id: 580, lat: 41.66, lng: -87.6
-# Start data
-
-UPDATE `arctic-analyzer-392401.Case_Study_London_Bike.2022_12_Trip_Data`
-
-SET
-  start_station_name = "Public Rack - Ellis Ave & Doty Ave", start_station_id = "580"
-
-WHERE
-  start_lat = 41.66 AND start_lng = -87.6; 
-
-# End Data
-
-UPDATE `arctic-analyzer-392401.Case_Study_London_Bike.2022_12_Trip_Data`
-
-SET
-  end_station_name = "Public Rack - Ellis Ave & Doty Ave", end_station_id = "580"
-
-WHERE
-  end_lat = 41.66 AND end_lng = -87.6; 
-
-# station name: "Public Rack - Stewart Ave & 123rd St", id: 586, lat: 41.67, lng: -87.63
-# Start Data
-UPDATE `arctic-analyzer-392401.Case_Study_London_Bike.2022_12_Trip_Data`
-
-SET
-  start_station_name = "Public Rack - Stewart Ave & 123rd St", start_station_id = "586"
-
-WHERE
-  start_lat = 41.67 AND start_lng = -87.63; 
-
-
-# End Data
-UPDATE `arctic-analyzer-392401.Case_Study_London_Bike.2022_12_Trip_Data`
-
-SET
-  end_station_name = "Public Rack - Stewart Ave & 123rd St", end_station_id = "586"
-
-WHERE
-  end_lat = 41.67 AND end_lng = -87.63; 
-
-# station name: "Public Rack - Rockwell & 111th St", id: 677, lat: 41.69, lng: -87.69
-# Start Data
-UPDATE `arctic-analyzer-392401.Case_Study_London_Bike.2022_12_Trip_Data`
-
-SET
-  start_station_name = "Public Rack - Rockwell & 111th St", start_station_id = "677"
-
-WHERE
-  start_lat = 41.69 AND start_lng = -87.69; 
-
-# End Data
-UPDATE `arctic-analyzer-392401.Case_Study_London_Bike.2022_12_Trip_Data`
-
-SET
-  end_station_name = "Public Rack - Rockwell & 111th St", end_station_id = "677"
-
-WHERE
-  end_lat = 41.69 AND end_lng = -87.69; 
+# We save this into a new table "Cleaned_2022_08_Trip_Data"
+# Then we repeat the same cleaning procedure for 2022 September to 2023 July
+# Then using the cleaned 2022 August trip data as a base, we join in other tables to fill in any missing values. 
+(Current Work in Progress)
