@@ -137,4 +137,22 @@ FROM
 ORDER BY
   start_date, start_time
 
+# Now that we have the dataset saved as one big file, using the start_time column, we can create a new column called 
+# 'part of day' that categorizes each ride into morning, afternoon, evening, and night
+
+SELECT 
+  ride_type, day, FORMAT_DATE('%B', start_date) AS month, start_date, 
+  CASE
+    WHEN start_time >= '05:00:00' AND start_time <= '12:00:00' THEN 'morning'
+    WHEN start_time >= '12:00:01' AND start_time <= '17:00:00' THEN 'afternoon'
+    WHEN start_time >= '17:00:01' AND start_time <= '21:00:00' THEN 'evening'
+    ELSE 'night'
+    END
+    AS part_of_day, trip_duration AS trip_duration_min, membership_status
+
+FROM `arctic-analyzer-392401.Case_Study_London_Bike.Combined_2022_08_to_2023_07_Trip_Data` 
+
+ORDER BY
+  start_date, month, start_time, day, membership_status
+
 # Now the dataset is ready for analysis.
